@@ -19,7 +19,8 @@ class HEstimatorCNN(nn.Module):
             nn.Flatten(),
             nn.Linear(64,128),
             nn.ReLU(),
-            nn.Linear(128,1)
+            nn.Linear(128,1),
+            nn.Sigmoid()
         )
     
     def forward(self,x):
@@ -36,7 +37,8 @@ class HEstimatorFNN(nn.Module):
             nn.Linear(512,256),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(256,1)
+            nn.Linear(256,1),
+            nn.Sigmoid()
         )
 
     def forward(self,x):
@@ -68,7 +70,7 @@ def estimate_H_mle_from_fBM(fBM,dt):
     result = minimize_scalar(
             fun = lambda H: neg_log_likelihood(n,H,fBM,dt),
             method = "bounded",
-            bounds = (1e-5,1-1e-5),
+            bounds = (1e-4,1-1e-4),
             options={
                 "xatol":1e-6,
                 "maxiter":100
@@ -78,4 +80,29 @@ def estimate_H_mle_from_fBM(fBM,dt):
     H_hat = result.x
     R = construct_cov(n,H_hat,dt)
     v_hat = np.sqrt((fBM.T @ np.linalg.solve(R,fBM))/n)
-    return H_hat,v_hat
+    return H_hat
+
+def mle_for_inc(inc, dt):
+    fbm_path = np.cumsum(inc)
+    H_hat, _ = estimate_H_mle_from_fBM(fbm_path, dt)
+    return H_hat
+
+def calc_spot_var(S,m):
+    log_returns = np.log(S[1:]/S[:-1])
+    num_obs = len(log_returns)//m
+    spot_vars = np.zeros(num_obs)
+    for i in range(0,num_obs):
+        spot_vars[i] = np.mean(log_returns[i*m:i*m+m]**2)
+
+    return spot_vars
+
+
+def estimate_H_mle_from_stock(stock_path,dt):
+    spot_var = calc_spot_var(stock_path,16)
+    X_raw = np.log(spot_var)
+    fbm = X_raw-X_raw.mean()
+    n = len(fbm)
+    dt = 1/n
+    H_hat, _ = estimate_H_mle_from_fBM(fbm, dt)
+    return H_hat
+    

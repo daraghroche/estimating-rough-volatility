@@ -1,6 +1,6 @@
 import numpy as np
 import torch, os
-from data_simulator import simulate_fbm,add_noise_and_jumps
+from data_simulator import simulate_fbm_increments,add_noise_and_jumps
 from model import HEstimatorCNN
 import matplotlib
 matplotlib.use('Agg')
@@ -21,6 +21,7 @@ def evaluate_model(model,device,incs_test,labels,title):
     plt.xlabel('True H')
     plt.ylabel('Predicted H')
     plt.title(f'Calibration of {title} estimator')
+    plt.ylim(0, 1)
     plt.savefig(f'calibration_scatter_{title}.png')
     print("Saved plot to calibration_scatter.png")
     plt.close()

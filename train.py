@@ -63,5 +63,5 @@ def main():
     torch.save(model.state_dict(),"model_checkpoint.pt")
     print("model saved to module_checkpoint.pt")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
