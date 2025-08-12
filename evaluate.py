@@ -13,6 +13,7 @@ def evaluate_model(model,device,incs_test,labels,title):
         for inc in incs_test:
             x = torch.from_numpy(inc.astype(np.float32)).to(device)
             x = x.unsqueeze(0)
+            
             preds.append(model(x).item())
     errors=np.array(preds)-np.array(labels)
     plt.figure()
@@ -23,7 +24,7 @@ def evaluate_model(model,device,incs_test,labels,title):
     plt.title(f'Calibration of {title} estimator')
     plt.ylim(0, 1)
     plt.savefig(f'calibration_scatter_{title}.png')
-    print("Saved plot to calibration_scatter.png")
+    print(f"Saved plot to calibration_scatter_{title}.png")
     plt.close()
     return errors.mean(),np.sqrt((errors**2).mean())
 

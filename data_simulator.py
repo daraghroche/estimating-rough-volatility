@@ -3,6 +3,13 @@ from scipy.fftpack import fft, ifft
 import torch
 from torch.utils.data import Dataset
 from numpy.linalg import cholesky
+from scipy.fftpack import fft, ifft
+import matplotlib
+matplotlib.use("Agg")  
+import matplotlib.pyplot as plt
+import gc
+
+
 
 def simulate_fbm_increments(H: float, T: float, n: int) -> np.ndarray:
 
@@ -43,23 +50,17 @@ def construct_cov(num_steps,H,T):
     return cov
 
 
-def simulate_S(num_steps,T,L):
+def simulate_S(num_steps,T,nu,S0,p,V0,BH,Z):
+
     dt = T/num_steps
 
-    Z = np.random.randn(num_steps-1)
-    BH = L @ Z
+
     BH = np.concatenate([[0],BH])
     dB = Z*np.sqrt(dt)
-    B = np.concatenate([[0],np.cumsum(dB)])
     dW = np.random.randn(num_steps-1)*np.sqrt(dt)
-    W = np.concatenate([[0],np.cumsum(dW)])
-    
-    # Fixed params
-    nu = 1
-    S0 = 1
-    p = -.65
+
+
     pbar = np.sqrt(1-p**2)
-    V0 = 0.1
 
     V = V0*np.exp(nu*BH)
     dZ = p *dB + pbar*dW
@@ -67,6 +68,8 @@ def simulate_S(num_steps,T,L):
     log_S = np.cumsum(log_returns)
     S = S0 *np.exp(np.insert(log_S,0,0))
     return S
+
+
 
 
 def add_noise_and_jumps(

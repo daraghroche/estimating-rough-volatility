@@ -5,7 +5,7 @@ from dataloader import make_dataloader
 from model import HEstimatorCNN
 import numpy as np
 
-def train_model(model, loader, device, epochs=30, lr=1e-3, patience=5):
+def train_model(model, loader, device, epochs=30, lr=1e-3, patience=5,name = "cnn"):
     model = model.to(device)
     opt = optim.Adam(model.parameters(),lr=lr)
     sched = optim.lr_scheduler.StepLR(opt,step_size=10,gamma=0.5)
@@ -14,18 +14,32 @@ def train_model(model, loader, device, epochs=30, lr=1e-3, patience=5):
     best_loss = float("inf")
     no_improve = 0
 
+
+
     for epoch in range(1,epochs+1):
         model.train()
+ 
         total = 0
+        
+
+
         for x,y in loader:
+            
+            
+                
             x,y = x.to(device),y.to(device)
-            opt.zero_grad()
-            pred=model(x)
+                
+            opt.zero_grad(set_to_none=True)
+                
+            pred=model(x)                
             loss = crit(pred,y)
+         
             loss.backward()
+                
             opt.step()
             total += loss.item() * x.size(0)
-        train_mse = total/len(loader.dataset)
+            train_mse = total/len(loader.dataset)
+                
         print(f'Epoch {epoch:2d}:MSE={train_mse:.3e} lr={sched.get_last_lr()[0]:.1e}')
 
         if train_mse + 1e-6 <best_loss:

@@ -5,6 +5,9 @@ import numpy as np
 from joblib import Parallel, delayed
 from model import calc_spot_var
 import pickle
+import gc
+import scipy.linalg as la
+from scipy.linalg import blas
 
 
 class FBMDataset(Dataset):
@@ -53,27 +56,32 @@ def make_dataloader_stock_path(
     H_count = 0
     if new_data == True:
         for H_true in H_values:
-            print("star cov")
+            print("start cov")
             cov = construct_cov(num_steps = n_steps,H=H_true,T=1.0)
             print("start chol")
             L = np.linalg.cholesky(cov)
+            #L = la.cholesky(cov, lower=True, overwrite_a=True, check_finite=False).astype(np.float32, copy=False)
+ 
+            Zs = np.random.randn(n_paths, n_steps-1)
+            print("starting BHs calc")
+            BHs = (L@Zs.T).T
+            #BHs = (blas.dtrmm(alpha = 1.0,a=L,b=Zs.T,lower=True)).T
             print("start sims")
             for _ in range(n_paths):
-                stock_path = simulate_S(num_steps=n_steps,T=1.0,L=L)
-                spot_var=calc_spot_var(stock_path,32)
-                X = np.log(spot_var)
-                fbm = X-X.mean()
+                stock_path = simulate_S(num_steps=n_steps,T=1.0,nu=1,S0=1,p=-.65,V0=.1,BH=BHs[_],Z=Zs[_])
+                data_list.append((stock_path,H_true))
 
-                data_list.append((fbm,H_true))
+
+
             H_count+=1
             print(f'H count: {H_count}')
-        with open("simulated_fbm_from_stock_data.pkl", "wb") as f:
+        with open("simulated_stock_data_training.pkl", "wb") as f:
             pickle.dump(data_list, f)
-            print("fbm from stock training data saved")
+            print("stock training data saved")
     else:
-        with open("simulated_fbm_from_stock_data.pkl", "rb") as f:
+        with open("simulated_stock_data_training.pkl", "rb") as f:
             data_list = pickle.load(f)
-            print("fbm from stock training data loaded")
+            print("stock training data loaded")
     print(f'Building dataset with {len(data_list)} samples.')
     dataset = FBMDataset(data_list)
 
