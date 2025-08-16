@@ -9,8 +9,8 @@ def train_model(model, loader, device, epochs=30, lr=1e-3, patience=5,name = "cn
     model = model.to(device)
     opt = optim.Adam(model.parameters(),lr=lr)
     sched = optim.lr_scheduler.StepLR(opt,step_size=10,gamma=0.5)
-    crit = nn.MSELoss()
-
+    #crit = nn.MSELoss()
+    crit = nn.SmoothL1Loss(beta = 0.05)
     best_loss = float("inf")
     no_improve = 0
 

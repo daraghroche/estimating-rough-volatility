@@ -13,47 +13,83 @@ import matplotlib.pyplot as plt
 class HEstimatorCNN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.price_to_vol = nn.Sequential(
-            nn.Conv1d(1,32,kernel_size = 7,padding=3,dilation=1),
+        self.inorm = nn.InstanceNorm1d(1, affine=False)
+        self.net = nn.Sequential(
+            nn.Conv1d(1,32,kernel_size=7,padding=3,dilation=1),
             nn.ReLU(),
-            nn.Conv1d(32,64,kernel_size = 7,padding=3,dilation=1),
-            nn.ReLU(),
-            nn.Conv1d(64,64,kernel_size = 3,padding=1,stride=2),
-            nn.ReLU(),
-            nn.Conv1d(64,64,kernel_size = 3,padding=1,stride=2),
-            nn.ReLU(),
-            nn.Conv1d(64,16,kernel_size=1)
-        )
+            nn.AvgPool1d(kernel_size=4,stride=4),  # downsample for speed (set to 1 if you want full res)
 
+    # Dilated stack to see long horizons without blowing up compute
+            nn.Conv1d(32,32,kernel_size=7,padding=3,dilation=1),
+            nn.GroupNorm(1,32),
+            nn.ReLU(),
 
+            nn.Conv1d(32,32,kernel_size=7,padding=6,dilation=2),
+            nn.GroupNorm(1,32),
+            nn.ReLU(),
 
-        self.vol_to_H = nn.Sequential(
-            nn.Conv1d(16,64,kernel_size=15,padding=7,dilation=1),
-            nn.BatchNorm1d(64),
+            nn.Conv1d(32,32,kernel_size=7,padding=12,dilation=4),
+            nn.GroupNorm(1,32),
             nn.ReLU(),
-            nn.Conv1d(64,64,kernel_size=15,padding=14,dilation=2),
-            nn.BatchNorm1d(64),
+
+            nn.Conv1d(32,32,kernel_size=7,padding=24,dilation=8),
+            nn.GroupNorm(1,32),
             nn.ReLU(),
-            nn.Conv1d(64,64,kernel_size = 15,padding=28,dilation=4),
-            nn.BatchNorm1d(64),
+
+            nn.Conv1d(32,32,kernel_size=7,padding=48,dilation=16),
+            nn.GroupNorm(1,32),
             nn.ReLU(),
-            nn.Conv1d(64, 64, kernel_size=15, padding=56, dilation=8),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
+
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(64,128),
+            nn.Linear(32,64),
             nn.ReLU(),
-            nn.Linear(128,1),
+            nn.Linear(64,1),
             nn.Sigmoid()
-        )
+            )
+        # self.price_to_vol = nn.Sequential(
+        #     nn.Conv1d(1,32,kernel_size = 7,padding=3,dilation=1),
+        #     nn.ReLU(),
+        #     nn.Conv1d(32,64,kernel_size = 7,padding=3,dilation=1),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64,64,kernel_size = 3,padding=1,stride=2),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64,64,kernel_size = 3,padding=1,stride=2),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64,16,kernel_size=1)
+        # )
+
+
+
+        # self.vol_to_H = nn.Sequential(
+        #     nn.Conv1d(16,64,kernel_size=15,padding=7,dilation=1),
+        #     nn.BatchNorm1d(64),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64,64,kernel_size=15,padding=14,dilation=2),
+        #     nn.BatchNorm1d(64),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64,64,kernel_size = 15,padding=28,dilation=4),
+        #     nn.BatchNorm1d(64),
+        #     nn.ReLU(),
+        #     nn.Conv1d(64, 64, kernel_size=15, padding=56, dilation=8),
+        #     nn.BatchNorm1d(64),
+        #     nn.ReLU(),
+        #     nn.AdaptiveAvgPool1d(1),
+        #     nn.Flatten(),
+        #     nn.Linear(64,128),
+        #     nn.ReLU(),
+        #     nn.Linear(128,1),
+        #     nn.Sigmoid()
+        # )
 
     
     def forward(self,x):
         x = x.unsqueeze(1)
-        x = self.price_to_vol(x)
-        return self.vol_to_H(x)
-
+        x = self.inorm(x)
+        x = self.net(x)
+        #x = self.price_to_vol(x)
+        #return self.vol_to_H(x)
+        return x
     
 class HEstimatorFNN(nn.Module):
     def __init__(self,input_dim=1024):

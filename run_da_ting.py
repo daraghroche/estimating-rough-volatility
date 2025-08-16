@@ -28,21 +28,37 @@ def simulate_S_from_H(num_steps,T,H,nu,S0,p,V0):
     BH = L@Z
 
     stock = simulate_S(num_steps,T,nu,S0,p,V0,BH,Z)
-    return stock
+    if not np.isfinite(stock).all():
+        print("Non-finite prices detected! min/max:", np.nanmin(stock), np.nanmax(stock))
+    # ratio can still be inf/NaN; guard:
+    ratio = stock[1:] / stock[:-1]
+    log_ret = np.log(ratio, where=(ratio>0), out=np.full_like(ratio, np.nan))
+    log_ret = np.nan_to_num(log_ret, nan=0.0, posinf=0.0, neginf=0.0)
+    return log_ret
 
 
 def compare_stock_price(n_steps,n_paths,new_data):
     #prep data
-    H_vals = np.linspace(0.05,0.95,64)
-    loader = make_dataloader_stock_path(H_vals,n_paths = n_paths,n_steps=n_steps,batch_size=32,new_data=new_data)
+    H_vals = np.linspace(0.05,0.95,36)
+    loader = make_dataloader_stock_path(H_vals,
+                                        n_paths = n_paths,
+                                        n_steps=n_steps,
+                                        batch_size=64,
+                                        new_data=new_data,
+                                        crop_len=4095,
+                                        crops_per_path=1,
+                                        mode="center",
+                                        num_workers=2)
 
     #build test set
 
     stock_paths_test,labels = [],[]
         
     if new_data == True:
-        N_test = 200
-        Hs_test = np.random.uniform(0.01,0.99,N_test)
+        #N_test = 200
+        anchors = np.linspace(0.01,.99,20)
+        k=10
+        Hs_test = np.repeat(anchors,k)
         stock_paths_test = Parallel(n_jobs=-2, verbose=10)(
         delayed(simulate_S_from_H)(num_steps = n_steps,T=1,H = H,nu = 1,S0 = 1,p=-.65,V0=.1) for H in Hs_test )
         with open("simulated_stock_data_test.pkl", "wb") as f:
@@ -102,4 +118,4 @@ def compare_stock_price(n_steps,n_paths,new_data):
 
 
 if __name__=="__main__":
-     compare_stock_price(7000,4096,True)
+     compare_stock_price(n_steps=4096,n_paths=2000,new_data=True)

@@ -8,21 +8,53 @@ import pickle
 import gc
 import scipy.linalg as la
 from scipy.linalg import blas
+import random
 
 
 class FBMDataset(Dataset):
-    def __init__(self,data_list):
-        self.data = data_list
+    def __init__(self,data_list,crop_len = 1024, mode = "random",crops_per_path = 1,pad_mode = "reflect"):
+        #self.data = data_list
+        self.paths = [np.asarray(p[0],dtype = np.float32) for p in data_list]
+        self.labels = np.asarray([p[1] for p in data_list], dtype = np.float32)
+        self.crop_len = int(crop_len)
+        self.mode = mode
+        self.crops_per_pat = int(max(1,crops_per_path))
+        self.pad_mode = pad_mode
+
+        for i,x in enumerate(self.paths):
+            if x.ndim != 1:
+                raise ValueError(f'path {i} must be 1D got {x.shape}')
+            if x.shape[0]<self.crop_len:
+                if self.pad_mode is None:
+                    raise ValueError(f'path {i} is shorter than crop_len = {self.crop_len}')
+                pad = self.crop_len-x.shape[0]
+                self.paths[i]= np.pad(x, (0,pad),mode = self.pad_mode)
     
     def __len__(self):
-        return len(self.data)
+        return len(self.paths)*(self.crops_per_pat if self.mode == "random" else 1)
     
     def __getitem__(self,idx):
-        inc,H = self.data[idx]
-        # convert to Torch tensors
-        x = torch.from_numpy(inc.astype(np.float32))
-        y = torch.tensor([H],dtype=torch.float32)
-        return x,y
+        base_idx = idx if self.mode !="random" else idx//self.crops_per_pat
+        x = self.paths[base_idx]
+        y = self.labels[base_idx]
+        T = x.shape[0]
+        if self.mode == "random":
+            start = random.randint(0,T-self.crop_len)
+        elif self.mode == "center":
+            start = max(0,(T-self.crop_len)//2)
+        else:
+            start = 0
+
+        crop = x[start:start + self.crop_len]
+        xt = torch.from_numpy(crop).float()
+        yt = torch.tensor([y],dtype=torch.float32)
+        #inc,H = self.data[idx]
+        return xt,yt
+    
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() %2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 def make_dataloader(
         H_values,
@@ -50,7 +82,11 @@ def make_dataloader_stock_path(
         n_paths,
         n_steps,
         batch_size,
-        new_data
+        new_data,
+        crop_len = 1024,
+        crops_per_path= 4,
+        mode = "random",
+        num_workers = 2
 ):
     data_list = []
     H_count = 0
@@ -69,7 +105,11 @@ def make_dataloader_stock_path(
             print("start sims")
             for _ in range(n_paths):
                 stock_path = simulate_S(num_steps=n_steps,T=1.0,nu=1,S0=1,p=-.65,V0=.1,BH=BHs[_],Z=Zs[_])
-                data_list.append((stock_path,H_true))
+                ratio = stock_path[1:] / stock_path[:-1]
+                log_ret = np.log(ratio, where=(ratio>0), out=np.full_like(ratio, np.nan))
+                log_ret = np.nan_to_num(log_ret, nan=0.0, posinf=0.0, neginf=0.0)
+                data_list.append((log_ret, H_true))
+
 
 
 
@@ -83,6 +123,6 @@ def make_dataloader_stock_path(
             data_list = pickle.load(f)
             print("stock training data loaded")
     print(f'Building dataset with {len(data_list)} samples.')
-    dataset = FBMDataset(data_list)
+    dataset = FBMDataset(data_list,crop_len = crop_len,mode=mode,crops_per_path = crops_per_path)
 
-    return DataLoader(dataset,batch_size = batch_size,shuffle = True,num_workers = 2)
+    return DataLoader(dataset,batch_size = batch_size,shuffle = True,num_workers = num_workers,worker_init_fn= seed_worker)
